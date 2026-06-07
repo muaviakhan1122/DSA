@@ -13,10 +13,10 @@ export const DATA_DIR = path.join(BASE_DIR, 'data');
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 export const GROQ_API_KEY = process.env.GROQ_API_KEY || ''; 
 
-// Updated to Groq's newest, most stable Free-Tier models
+// 100% Cloud-Hosted LLaMA 3 Models via Groq
 export const TEXT_MODELS = [
-  'llama-3.3-70b-versatile',  // Primary
-  'llama-3.1-8b-instant'      // Fallback
+  'llama-3.3-70b-versatile',  // Primary: Highly intelligent
+  'llama-3.1-8b-instant'      // Fallback: Ultra-fast
 ];
 
 export const TOPICS = [
@@ -50,10 +50,5 @@ Do not provide long text explanations, just the visual ASCII mapping wrapped in 
   evaluator: `You are a strict but fair academic grader and quiz generator for DSA.
 When grading answers: Point out the exact logical gap. Return a score out of 10.
 When generating quizzes: Emulate high-stakes university exams. Include trap answers in MCQs and complex code-tracing scenarios.
-CRITICAL INSTRUCTION: Do NOT use Markdown (* or #). You must output the entire quiz using clean, semantic HTML tags.`,
-
-  predictor: `You are a statistical exam prediction AI.
-Analyze the provided assignments, quizzes, and slides. Identify overlapping concepts. 
-If an assignment emphasizes AVL Rotations, predict a high probability of it appearing on the final. 
-Output predictions with percentages of probability.`
+CRITICAL INSTRUCTION: Use standard Markdown formatting for everything (e.g., ### for headings, ** for bold, numbered lists for questions). Do NOT use raw HTML tags. Place the Answer Key at the end.`
 };

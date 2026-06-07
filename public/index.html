@@ -1396,27 +1396,40 @@
     // High fidelity markdown to clean HTML parser (upgraded to clean up ALL raw stars/hashes)
     function cleanFormatOutput(text) {
       if (!text) return "";
+      
+      // Escape HTML to protect C++ code tags like <iostream>
       let html = escapeHtml(text);
 
       html = html.replace(/--\s*$/gm, '');
 
+      // 1. Process code blocks
+      html = html.replace(/```[a-zA-Z]*\n([\s\S]*?)```/g, '<pre class="bg-slate-800 text-slate-100 p-4 rounded my-3 overflow-x-auto text-xs"><code>$1</code></pre>');
       html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-slate-800 text-slate-100 p-4 rounded my-3 overflow-x-auto text-xs"><code>$1</code></pre>');
 
+      // 2. Process headers
       html = html.replace(/^### (.*?)$/gm, '<h3 class="text-md font-bold mt-4 mb-2 text-indigo-950 font-sans">$1</h3>');
       html = html.replace(/^## (.*?)$/gm, '<h2 class="text-lg font-bold mt-4 mb-2 text-indigo-950 font-sans">$1</h2>');
       html = html.replace(/^# (.*?)$/gm, '<h1 class="text-xl font-bold mt-5 mb-2 text-indigo-950 font-sans">$1</h1>');
-
       html = html.replace(/^#+\s*(.*?)$/gm, '<h3 class="text-sm font-bold mt-3 mb-1 text-indigo-950 font-sans">$1</h3>');
 
+      // 3. Process bolding & italics
       html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
-
       html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-800">$1</em>');
 
+      // 4. Process Lists (Bullets, Quiz Numbers, and MCQ Letters)
+      // Standard bullet points
       html = html.replace(/^\s*[-*•]\s+(.*?)$/gm, '<li class="ml-4 list-disc text-sm py-0.5 text-gray-700">$1</li>');
+      
+      // Numbered Quiz Questions (e.g., "1. What is...")
+      html = html.replace(/^\s*(\d+)\.\s+(.*?)$/gm, '<li class="ml-2 list-decimal text-sm py-1 text-gray-900 font-semibold mt-3"><span class="ml-1">$2</span></li>');
+      
+      // MCQ Options (e.g., "a)", "A.", "b)")
+      html = html.replace(/^\s*([a-zA-Z][\.\)])\s+(.*?)$/gm, '<li class="ml-8 list-none text-sm py-1 text-gray-700 flex items-start"><span class="font-bold text-indigo-600 mr-2 w-6">$1</span><span>$2</span></li>');
 
+      // 5. Wrap standard plain lines into clean paragraph components
       html = html.split('\n').map(line => {
         const trimmed = line.trim();
-        if (trimmed.startsWith('<h') || trimmed.startsWith('<pre') || trimmed.startsWith('<li') || trimmed.startsWith('</li') || trimmed === '') {
+        if (trimmed.startsWith('<h') || trimmed.startsWith('<pre') || trimmed.startsWith('<li') || trimmed === '') {
           return line;
         }
         return `<p class="text-sm leading-relaxed mb-2 text-gray-700">${line}</p>`;
@@ -1424,7 +1437,7 @@
 
       return html;
     }
-
+    
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
