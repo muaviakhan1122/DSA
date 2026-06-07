@@ -13,10 +13,10 @@ export const DATA_DIR = path.join(BASE_DIR, 'data');
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 export const GROQ_API_KEY = process.env.GROQ_API_KEY || ''; 
 
-// 100% Cloud-Hosted LLaMA 3 Models via Groq
+// Updated to Groq's newest, most stable Free-Tier models
 export const TEXT_MODELS = [
-  'llama3-70b-8192',  // Primary: Highly intelligent, handles ASCII diagrams well
-  'llama3-8b-8192'    // Fallback: Ultra-fast
+  'llama-3.3-70b-versatile',  // Primary
+  'llama-3.1-8b-instant'      // Fallback
 ];
 
 export const TOPICS = [
