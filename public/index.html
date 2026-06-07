@@ -519,7 +519,6 @@
       const panel = document.getElementById('gradebook-panel');
       const arrow = document.getElementById('gradebook-arrow');
       isGradebookOpen = !isGradebookOpen;
-
       if (isGradebookOpen) {
         panel.classList.remove('hidden');
         arrow.innerText = "▲";
@@ -534,7 +533,6 @@
       const panel = document.getElementById('history-panel');
       const arrow = document.getElementById('history-arrow');
       isHistoryOpen = !isHistoryOpen;
-
       if (isHistoryOpen) {
         panel.classList.remove('hidden');
         arrow.innerText = "▲";
@@ -543,8 +541,6 @@
         arrow.innerText = "▼";
       }
     }
-
-    // --- CO-PILOT CHAT SYSTEM CONTROLLERS ---
 
     async function sendCopilotMessage() {
       const inputEl = document.getElementById('copilot-input');
@@ -595,7 +591,6 @@
             }
           }
         }
-
         activeChatMessages.push({ sender: "ai", text: aiMessageText });
         const chatBox = document.getElementById('copilot-messages');
         chatBox.scrollTop = chatBox.scrollHeight;
@@ -711,7 +706,7 @@
       });
     }
 
-    // --- AUTOMATIC WRAPPER REVEAL FIXED ---
+    // FIX 1: Array-Safe Playlist Extractor
     async function selectTopic(topic) {
       try {
         selectedTopic = topic;
@@ -726,8 +721,6 @@
         }
 
         document.getElementById('current-topic-heading').innerText = `Study ${topic}`;
-        
-        // Ensure Welcome Placeholder hides and BOTH Teaching wrappers unhide properly
         const welcomeNode = document.getElementById('welcome-placeholder');
         if (welcomeNode) welcomeNode.classList.add('hidden');
         
@@ -735,10 +728,10 @@
         if (wrapperNode) wrapperNode.classList.remove('hidden');
 
         const splitContainer = document.getElementById('teaching-split-container');
-        if (splitContainer) splitContainer.classList.add('hidden'); // Reset split view initially
+        if (splitContainer) splitContainer.classList.add('hidden'); 
 
         const conceptBox = document.getElementById('concept-check-box');
-        if (conceptBox) conceptBox.classList.add('hidden'); // Reset concept view initially
+        if (conceptBox) conceptBox.classList.add('hidden'); 
 
         const defaultCode = cppCodeTemplates[topic] || '// Write C++23 code here...';
         if (playgroundEditor) {
@@ -756,22 +749,46 @@
         });
         
         if (!res.ok) throw new Error("Failed to load topic metadata.");
-        
         const data = await res.json();
         
         const iframe = document.getElementById('video-iframe');
         const embedBox = document.getElementById('video-embed-box');
         const iframeContainer = document.getElementById('video-iframe-container');
         const statusNotice = document.getElementById('video-status-notice');
+        
+        // Playlist Fix
+        const playlistContainer = document.getElementById('playlist-container');
+        const playlistSelect = document.getElementById('playlist-select');
 
-        if (data.youtubeUrl && data.youtubeUrl.trim() !== "") {
-          const videoId = extractYTId(data.youtubeUrl);
-          iframe.src = `https://www.youtube.com/embed/${videoId}`;
+        let urls = [];
+        if (Array.isArray(data.youtubeUrl)) {
+          urls = data.youtubeUrl;
+        } else if (data.youtubeUrl && typeof data.youtubeUrl === 'string' && data.youtubeUrl.trim() !== "") {
+          urls = [data.youtubeUrl];
+        }
+
+        if (urls.length > 0) {
+          playlistSelect.innerHTML = "";
+          urls.forEach((u, idx) => {
+            const opt = document.createElement('option');
+            opt.value = extractYTId(u);
+            opt.innerText = `▶ Part ${idx + 1} of ${urls.length}`;
+            playlistSelect.appendChild(opt);
+          });
+
+          if (urls.length > 1) {
+            playlistContainer.classList.remove('hidden');
+          } else {
+            playlistContainer.classList.add('hidden');
+          }
+
+          iframe.src = `https://www.youtube.com/embed/${extractYTId(urls[0])}`;
           iframeContainer.classList.remove('hidden');
           statusNotice.innerText = "🔔 Watch this reference tutorial first to understand the basics, then click 'Unlock AI Explanation'.";
           statusNotice.className = "p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 text-xs font-semibold";
           embedBox.classList.remove('hidden');
         } else {
+          playlistContainer.classList.add('hidden');
           iframe.src = "";
           iframeContainer.classList.add('hidden');
           statusNotice.innerText = `💡 No custom reference video mapped for ${topic}. You can skip straight to the AI explanations.`;
@@ -782,14 +799,24 @@
         switchTab('teach-tab');
       } catch (err) {
         console.error("Topic Load Error:", err);
-        alert("An error occurred loading the topic data. Ensure backend is running.");
+        alert(`An error occurred loading the topic data: ${err.message}`);
       }
     }
 
     function extractYTId(url) {
+      if (!url) return null;
       const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
       const match = url.match(regExp);
       return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    // Connects Dropdown to iframe
+    function changePlaylistVideo() {
+      const select = document.getElementById('playlist-select');
+      const iframe = document.getElementById('video-iframe');
+      if (select.value) {
+        iframe.src = `https://www.youtube.com/embed/${select.value}`;
+      }
     }
 
     async function unlockTeaching() {
@@ -857,9 +884,7 @@
                   accumulatedText += parsed.text;
                   output.innerHTML = cleanFormatOutput(accumulatedText);
                 }
-              } catch (e) {
-                // Ignore parsing errors
-              }
+              } catch (e) { }
             }
           }
         }
@@ -893,7 +918,6 @@
         
         visualsLoader.classList.add('hidden');
         if (data.diagram && data.diagram.trim().length > 0) {
-          // FIX: Strip out the raw markdown code block characters before rendering
           const cleanDiagram = data.diagram.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
           visualOutput.innerHTML = `<pre class="bg-slate-800 text-slate-100 p-4 rounded text-xs font-mono overflow-x-auto"><code>${escapeHtml(cleanDiagram)}</code></pre>`;
         } else {
@@ -1064,7 +1088,7 @@
       }
     }
 
-async function startQuiz() {
+    async function startQuiz() {
       const topic = document.getElementById('quiz-topic').value;
       const format = document.getElementById('quiz-format').value;
       const loader = document.getElementById('quiz-loader');
@@ -1087,7 +1111,6 @@ async function startQuiz() {
         loader.classList.add('hidden');
         if (data.quiz) {
           activeRawQuiz = data.quiz;
-          // FIX: Pass the quiz through cleanFormatOutput so it formats as markdown perfectly
           quizPaper.innerHTML = cleanFormatOutput(data.quiz);
           document.getElementById('quiz-answers').value = "";
           outputContainer.classList.remove('hidden');
@@ -1233,7 +1256,8 @@ async function startQuiz() {
       container.innerHTML = "";
       
       Object.entries(profile).forEach(([topic, score]) => {
-        const row = document.className = "text-xs space-y-1";
+        const row = document.createElement('div');
+        row.className = "text-xs space-y-1";
         row.innerHTML = `
           <div class="flex justify-between font-semibold text-gray-700">
             <span>${topic}</span>
@@ -1369,7 +1393,7 @@ async function startQuiz() {
       }
     }
 
-    // High fidelity markdown to clean HTML parser
+    // High fidelity markdown to clean HTML parser (upgraded to clean up ALL raw stars/hashes)
     function cleanFormatOutput(text) {
       if (!text) return "";
       let html = escapeHtml(text);
