@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DSA AI Tutor Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/clike/clike.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.min.js"></script>
+
+  <style>
+    pre {
+      font-family: 'Courier New', Courier, monospace;
+      background-color: #1e293b;
+      color: #f8fafc;
+      padding: 1rem;
+      border-radius: 0.375rem;
+      overflow-x: auto;
+    }
+    #quiz-paper h3 { font-size: 1.125rem; font-weight: bold; color: #312e81; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+    #quiz-paper p { font-size: 0.875rem; color: #374151; margin-bottom: 0.5rem; line-height: 1.6;}
+    #quiz-paper ul, #quiz-paper ol { padding-left: 1.5rem; margin-bottom: 1rem; font-size: 0.875rem; color: #4b5563;}
+    #quiz-paper li { margin-bottom: 0.25rem; list-style-type: lower-alpha; }
+    
+    .CodeMirror {
+      height: 400px;
+      border-radius: 0.5rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.75rem;
+      border: 1px solid #1e293b;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+
+  <!-- LOGIN OVERLAY -->
+  <div id="login-overlay" class="fixed inset-0 bg-indigo-950 bg-opacity-95 flex items-center justify-center z-50">
+    <div class="bg-white p-8 rounded-lg shadow-xl border border-gray-200 max-w-md w-full mx-4">
+      <div class="text-center mb-6">
+        <h2 class="text-2xl font-bold text-indigo-900">UOL Student Portal</h2>
+        <p class="text-sm text-gray-500 mt-1">Sign in with your university credentials</p>
+      </div>
+      
+      <!-- Primary: Google OAuth Container -->
+      <div id="google-buttonDiv" class="flex justify-center mb-4 min-h-[40px] hidden"></div>
+
+      <!-- Fallback: Developer Offline Mode -->
+      <div id="offline-developer-login" class="hidden border-t border-gray-150 pt-4 mt-4 text-center">
+        <p class="text-[10px] text-gray-400 mb-2">Google Client ID Missing. Using Offline Developer Mode:</p>
+        <div class="flex gap-2">
+          <input type="email" id="dev-email-input" class="flex-grow border border-gray-300 rounded p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none" value="70176628@student.uol.edu.pk">
+          <button onclick="triggerOfflineLogin()" class="text-xs bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-lg transition shadow-sm outline-none">Log In</button>
+        </div>
+      </div>
+
+      <div id="login-error" class="hidden text-xs text-red-600 font-semibold bg-red-50 p-3 rounded border border-red-100 text-center mt-3">
+        Access Denied: Only @student.uol.edu.pk accounts are permitted.
+      </div>
+    </div>
+  </div>
+
+  <!-- HIGH-RESOLUTION PDF LIGHTBOX MODAL -->
+  <div id="pdf-modal" class="fixed inset-0 bg-slate-950 bg-opacity-80 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg overflow-hidden w-11/12 max-w-5xl h-[85vh] shadow-2xl flex flex-col mx-4">
+      <div class="bg-slate-100 p-4 flex justify-between items-center border-b">
+        <span id="pdf-modal-title" class="font-bold text-sm text-indigo-900">PDF Slide Reference</span>
+        <button onclick="closePdfModal()" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded font-medium transition">Close Viewer</button>
+      </div>
+      <div class="flex-grow w-full h-full bg-slate-200">
+        <iframe id="pdf-modal-iframe" class="w-full h-full" src="" frameborder="0"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div id="app-container" class="hidden">
+    <header class="bg-indigo-900 text-white shadow-md">
+      <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold tracking-tight">DSA AI Tutor Portal</h1>
+        <div class="flex items-center gap-4">
+          <span id="user-display" class="text-xs text-indigo-200 border-r border-indigo-700 pr-4"></span>
+          <button onclick="handleLogout()" class="text-xs bg-indigo-800 hover:bg-indigo-700 px-3 py-1.5 rounded text-white font-medium transition">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+      
+      <!-- Sidebar -->
+      <div class="lg:col-span-1 space-y-6">
+        
+        <!-- Student Profile Panel -->
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+          <h2 class="text-lg font-bold text-indigo-950">Student Profile</h2>
+          
+          <div id="profile-container" class="space-y-3">
+            <p class="text-sm text-gray-500">Loading metrics...</p>
+          </div>
+          
+          <div id="recommendation-box" class="p-3 bg-indigo-50 border border-indigo-100 rounded text-xs text-indigo-900 font-medium"></div>
+
+          <!-- COLLAPSIBLE RAW MONGO DATABASE GRADEBOOK -->
+          <div class="border-t border-gray-100 pt-4">
+            <button onclick="toggleGradebook()" class="w-full flex justify-between items-center text-xs font-bold text-slate-500 hover:text-slate-800 uppercase tracking-wider outline-none">
+              <span>📊 Live Mongo Gradebook</span>
+              <span id="gradebook-arrow">▼</span>
+            </button>
+            <div id="gradebook-panel" class="hidden mt-3 max-h-48 overflow-y-auto space-y-2 text-[11px]">
+              <p class="text-gray-400 italic">No entries logged yet. Complete a Quiz or Assignment to seed.</p>
+            </div>
+          </div>
+
+          <!-- COLLAPSIBLE SAVED CHATS HISTORY -->
+          <div class="border-t border-gray-100 pt-4">
+            <button onclick="toggleHistory()" class="w-full flex justify-between items-center text-xs font-bold text-slate-500 hover:text-slate-800 uppercase tracking-wider outline-none">
+              <span>💬 Saved Chat History</span>
+              <span id="history-arrow">▼</span>
+            </button>
+            <div id="history-panel" class="hidden mt-3 max-h-48 overflow-y-auto space-y-2 text-[11px]">
+              <p class="text-gray-400 italic">No saved chats found. Chat with the copilot to save sessions.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h2 class="text-lg font-bold mb-3 text-indigo-950">Select Topic</h2>
+          <div class="grid grid-cols-1 gap-2" id="topic-selector"></div>
+        </div>
+      </div>
+
+      <!-- Main Board -->
+      <div class="lg:col-span-3 space-y-8">
+        <div class="flex flex-wrap border-b border-gray-200">
+          <button onclick="switchTab('teach-tab')" id="btn-teach-tab" class="py-2 px-4 border-b-2 border-indigo-600 font-medium text-sm text-indigo-600">AI Teacher</button>
+          <button onclick="switchTab('playground-tab')" id="btn-playground-tab" class="py-2 px-4 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">C++23 Playground</button>
+          <button onclick="switchTab('quiz-tab')" id="btn-quiz-tab" class="py-2 px-4 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Practice Quizzes</button>
+          <button onclick="switchTab('analyze-tab')" id="btn-analyze-tab" class="py-2 px-4 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Assignment Analyzer</button>
+          <button onclick="switchTab('exam-tab')" id="btn-exam-tab" class="py-2 px-4 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Exam Simulator</button>
+        </div>
+
+        <!-- Tab 1: AI Teacher Mode -->
+        <div id="teach-tab" class="tab-content space-y-6">
+          <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-6 min-h-[400px]">
+            <h2 class="text-xl font-bold text-gray-900" id="current-topic-heading">Dashboard Home</h2>
+
+            <!-- Default Welcome Placeholder -->
+            <div id="welcome-placeholder" class="flex flex-col items-center justify-center text-center py-16 space-y-4">
+              <div class="bg-indigo-50 p-5 rounded-full border border-indigo-100 shadow-sm">
+                <span class="text-5xl">👋</span>
+              </div>
+              <div>
+                <h3 class="text-lg font-bold text-indigo-950">Welcome to your AI Tutor Portal!</h3>
+                <p class="text-sm text-gray-500 max-w-sm mx-auto mt-2">To begin your interactive learning session, please select a Data Structures topic from the left sidebar.</p>
+              </div>
+            </div>
+
+            <!-- TEACHING MODULE WRAPPER -->
+            <div id="teaching-module-wrapper" class="hidden space-y-6">
+              
+              <!-- Video Player Step (With custom Playlist controls) -->
+              <div id="video-embed-box" class="hidden space-y-4">
+                <div id="video-status-notice" class="p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 text-xs font-semibold"></div>
+                
+                <!-- Playlist Selection Dropdown -->
+                <div id="playlist-container" class="hidden space-y-1">
+                  <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500">📚 Video Tutorial Playlist</label>
+                  <select id="playlist-select" onchange="changePlaylistVideo()" class="border border-gray-300 rounded p-2 text-xs bg-white w-full outline-none shadow-sm focus:ring-1 focus:ring-indigo-500"></select>
+                </div>
+
+                <div id="video-iframe-container" class="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-md">
+                  <iframe id="video-iframe" class="w-full h-full" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+                <div class="flex justify-end">
+                  <button onclick="unlockTeaching()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded font-medium transition shadow-sm">Unlock AI Explanation</button>
+                </div>
+              </div>
+
+              <!-- ACTIVE STREAMING TIMER & LOADER -->
+              <div id="streaming-loader" class="hidden flex items-center gap-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 text-xs font-semibold shadow-sm">
+                <div class="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>
+                <span>AI Professor is streaming custom study materials... Elapsed: <span id="stream-timer" class="font-mono text-sm bg-indigo-100 px-2 py-0.5 rounded text-indigo-800">0s</span></span>
+              </div>
+
+              <!-- Side-by-Side Slide Previewer & AI Output Panel -->
+              <div id="teaching-split-container" class="hidden grid grid-cols-1 xl:grid-cols-3 gap-6">
+                
+                <!-- Left side: AI explanation -->
+                <div class="xl:col-span-2 space-y-6">
+                  <div>
+                    <h3 class="text-lg font-bold text-indigo-900 font-sans border-b border-gray-100 pb-2">Professor's Lecture Notes</h3>
+                    <div id="teacher-output" class="prose max-w-none text-sm text-gray-700 space-y-4 mt-2"></div>
+                  </div>
+
+                  <div id="visual-section" class="border-t border-gray-100 pt-6 space-y-3">
+                    <h3 class="text-lg font-bold text-indigo-900 font-sans border-b border-gray-100 pb-2">Visual Representation</h3>
+                    <div id="visuals-loader" class="hidden flex items-center gap-2 p-3 bg-slate-100 border border-gray-200 rounded-lg text-slate-700 text-xs font-semibold mt-4">
+                      <div class="animate-spin rounded-full h-3 w-3 border-2 border-slate-600 border-t-transparent"></div>
+                      <span>Rendering structural visual layout using Cloud Gemini...</span>
+                    </div>
+                    <div id="visual-output" class="mt-4"></div>
+                  </div>
+                </div>
+
+                <!-- Right side: Slide References & AI Side Copilot Panel -->
+                <div class="xl:col-span-1 space-y-6 border-t xl:border-t-0 xl:border-l xl:pl-6 border-gray-200 flex flex-col gap-6">
+                  
+                  <div class="space-y-4">
+                    <h3 class="text-lg font-bold text-indigo-900 font-sans border-b border-gray-100 pb-2">Slide References</h3>
+                    <div id="slide-previews-container" class="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+                      <p class="text-xs text-gray-500 mt-2">Searching slides...</p>
+                    </div>
+                  </div>
+
+                  <div class="p-4 bg-slate-900 text-slate-100 rounded-xl shadow-md border border-slate-950 flex flex-col h-[400px]">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2 mb-2">
+                      <span class="font-bold text-[10px] uppercase tracking-wider text-indigo-400">🤖 AI Side Copilot</span>
+                      <button onclick="saveCurrentChat()" class="text-[9px] bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded font-bold transition shadow-sm outline-none">💾 Save Chat</button>
+                    </div>
+                    <div id="copilot-messages" class="flex-grow overflow-y-auto space-y-3 text-[11px] mb-3 pr-1">
+                      <p class="text-slate-400 italic">Professor: Hello! I am your visual/logic copilot. If you don't understand any specific complexity notations or logic blocks, paste it here and I will clarify it instantly!</p>
+                    </div>
+                    <div id="copilot-loader" class="hidden flex items-center gap-2 text-[10px] text-indigo-300 font-semibold mb-2">
+                      <div class="animate-spin rounded-full h-3 w-3 border-2 border-indigo-400 border-t-transparent"></div>
+                      <span>Professor is writing response...</span>
+                    </div>
+                    <div class="flex gap-2">
+                      <input type="text" id="copilot-input" class="flex-grow bg-slate-800 border border-slate-700 rounded p-2 text-[11px] text-slate-100 outline-none focus:ring-1 focus:ring-indigo-500" placeholder="Ask copilot to clarify...">
+                      <button onclick="sendCopilotMessage()" class="bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded text-[11px] font-bold transition shadow-sm">Send</button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Concept Check -->
+          <div id="concept-check-box" class="hidden bg-white p-6 rounded-lg shadow-sm border border-gray-200 font-sans space-y-4">
+            <h3 class="text-lg font-bold text-gray-900 border-b border-gray-100 pb-2">Instant Concept Check</h3>
+            <div id="concept-question-loader" class="hidden flex items-center gap-2 text-xs font-semibold text-indigo-950 p-2 bg-indigo-50 border rounded-lg mt-4">
+              <div class="animate-spin rounded-full h-3.5 w-3.5 border-2 border-indigo-600 border-t-transparent"></div>
+              <span>Drafting conceptual question...</span>
+            </div>
+            <div id="concept-active-container" class="space-y-4 hidden mt-4">
+              <div id="concept-question" class="text-gray-700 font-sans text-sm"></div>
+              <textarea id="concept-answer" rows="3" class="w-full border border-gray-300 rounded p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" placeholder="Type your explanation here..."></textarea>
+              <div class="flex justify-end">
+                <button onclick="submitConceptAnswer()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-2 rounded font-medium transition shadow-sm">Submit Answer</button>
+              </div>
+            </div>
+            <div id="concept-feedback-loader" class="hidden flex items-center gap-2 text-xs font-semibold text-emerald-950 p-3 bg-emerald-50 border border-emerald-100 rounded-lg mt-4">
+              <div class="animate-spin rounded-full h-3.5 w-3.5 border-2 border-emerald-600 border-t-transparent"></div>
+              <span>Evaluating explanation accuracy...</span>
+            </div>
+            <div id="concept-feedback" class="hidden mt-4"></div>
+          </div>
+        </div>
+
+        <!-- Tab 5: C++23 COMPILER PLAYGROUND -->
+        <div id="playground-tab" class="tab-content hidden space-y-6">
+          <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+              <h3 class="text-lg font-bold text-indigo-900 font-sans">C++23 Interactive Compiler Playground</h3>
+              <button onclick="runCppCode()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4 py-2 rounded font-bold transition flex items-center gap-2 shadow-sm">
+                <span id="compiler-btn-spinner" class="hidden animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></span>
+                <span>▶ Run Program</span>
+              </button>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-2">
+              <div class="lg:col-span-2 space-y-1">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">C++23 Source Code Editor</span>
+                <textarea id="compiler-code" name="compiler-code"></textarea>
+              </div>
+              <div class="lg:col-span-1 flex flex-col gap-4">
+                <div class="flex-grow space-y-1">
+                  <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Standard Input (stdin)</span>
+                  <textarea id="compiler-stdin" rows="3" class="w-full border border-gray-300 rounded p-2 text-xs outline-none shadow-inner" placeholder="Provide execution inputs..."></textarea>
+                </div>
+                <div class="flex-grow space-y-1">
+                  <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Terminal Output (stdout/stderr)</span>
+                  <div id="compiler-stdout" class="w-full bg-slate-950 text-slate-200 font-mono text-xs p-3 rounded-lg min-h-[220px] max-h-[220px] overflow-y-auto whitespace-pre-wrap shadow-inner">Program output will render here...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Quizzes -->
+        <div id="quiz-tab" class="tab-content hidden space-y-6">
+          <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+            <h2 class="text-xl font-bold text-gray-900 border-b border-gray-100 pb-3 font-sans">Practice Quiz</h2>
+            <div class="flex flex-wrap gap-4 mb-4 pt-2">
+              <select id="quiz-topic" class="border border-gray-300 rounded p-2 text-sm bg-white shadow-sm"></select>
+              <select id="quiz-format" class="border border-gray-300 rounded p-2 text-sm bg-white shadow-sm">
+                <option value="mix">Mixed Formats</option>
+                <option value="MCQs">Multiple Choice Questions</option>
+                <option value="True/False">True/False Questions</option>
+                <option value="Short Questions">Short Questions</option>
+              </select>
+              <button onclick="startQuiz()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded font-medium transition shadow-sm">Generate Quiz</button>
+            </div>
+            <div id="quiz-loader" class="hidden flex items-center gap-2 text-xs font-semibold p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+              <div class="animate-spin rounded-full h-3 w-3 border-2 border-indigo-600 border-t-transparent"></div>
+              <span>Preparing quiz paper...</span>
+            </div>
+            <div id="quiz-output-container" class="hidden space-y-4">
+              <div id="quiz-paper" class="text-gray-700 bg-gray-50 p-6 border rounded-lg shadow-inner font-sans mt-4"></div>
+              <div class="border-t border-gray-200 pt-4 space-y-2">
+                <label class="block text-xs font-bold uppercase tracking-wider text-gray-600">Your Quiz Answers Sheet</label>
+                <textarea id="quiz-answers" rows="6" class="w-full border border-gray-300 rounded p-3 text-xs focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm" placeholder="Input your answers here..."></textarea>
+                <div class="flex justify-end mt-2">
+                  <button onclick="submitQuizAnswers()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded font-bold transition flex items-center gap-2 shadow-sm">
+                    <span id="quiz-submit-spinner" class="hidden animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></span>
+                    <span>Submit Exam for Evaluation</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div id="quiz-evaluation-report" class="hidden mt-4"></div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Assignment Analyzer -->
+        <div id="analyze-tab" class="tab-content hidden space-y-6">
+          <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+            <h2 class="text-xl font-bold text-gray-900 border-b border-gray-100 pb-3 font-sans">Assignment Analyzer & Interactive Grader</h2>
+            <p class="text-sm text-gray-500 pt-2">The AI will analyze your assignment task sheet and prepare a grading standard. Enter your code below for assessment.</p>
+            <div class="space-y-2 mt-4">
+              <label class="block text-xs font-bold uppercase tracking-wider text-gray-600">Assignment Task Sheet Prompt</label>
+              <textarea id="assignment-text" rows="4" class="w-full border border-gray-300 rounded p-3 text-xs outline-none shadow-sm" placeholder="Paste assignment requirements here..."></textarea>
+            </div>
+            <div class="space-y-2 mt-4">
+              <label class="block text-xs font-bold uppercase tracking-wider text-gray-600">Your C++23 Code Solution</label>
+              <textarea id="assignment-student-code" name="assignment-student-code"></textarea>
+            </div>
+            <div id="assignment-loader" class="hidden flex items-center gap-2 text-xs font-semibold p-3 bg-indigo-50 border border-indigo-100 rounded-lg mt-4">
+              <div class="animate-spin rounded-full h-3 w-3 border-2 border-indigo-600 border-t-transparent"></div>
+              <span>AI is compiling and grading your code...</span>
+            </div>
+            <div class="flex justify-end mt-4">
+              <button onclick="analyzeAssignment()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4 py-2 rounded font-bold transition shadow-sm">Evaluate Assignment</button>
+            </div>
+            <div id="analyzer-output" class="hidden mt-4"></div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Exam Simulator -->
+        <div id="exam-tab" class="tab-content hidden space-y-6">
+          <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <h2 class="text-xl font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 font-sans">Exam Simulator & Predictions</h2>
+            <p class="text-sm text-gray-500 mb-4">Simulate full exams or request targeted final exam patterns calculated from available course assets.</p>
+            <div class="flex gap-4">
+              <button onclick="runSirPredictor()" class="bg-amber-600 hover:bg-amber-700 text-white text-sm px-4 py-2 rounded font-medium transition shadow-sm">Sir Predictor (Top 5 Estimates)</button>
+              <button onclick="generateMockExam()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded font-medium transition shadow-sm">Simulate Full Exam</button>
+            </div>
+            <div id="exam-output" class="mt-6 text-gray-700 space-y-4"></div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const topics = ["Linked List", "Trees", "BST", "AVL", "Hashing", "Stack", "Queue", "STL", "Binary Search", "Vector"];
+    let selectedTopic = "";
+    let activeQuestion = "";
+    let activeRawQuiz = "";
+
+    let activeChatMessages = [];
+    let playgroundEditor;
+    let assignmentEditor;
+
+    const cppCodeTemplates = {
+      "Linked List": `#include <iostream>\n#include <memory>\n\nstruct Node {\n    int data;\n    std::unique_ptr<Node> next;\n    Node(int val) : data(val), next(nullptr) {}\n};\n\nclass LinkedList {\npublic:\n    std::unique_ptr<Node> head;\n\n    void insertAtHead(int val) {\n        auto newNode = std::make_unique<Node>(val);\n        newNode->next = std::move(head);\n        head = std::move(newNode);\n    }\n\n    void display() const {\n        for (Node* curr = head.get(); curr != nullptr; curr = curr->next.get()) {\n            std::cout << curr->data << " -> ";\n        }\n        std::cout << "nullptr\\n";\n    }\n};\n\nint main() {\n    LinkedList list;\n    list.insertAtHead(30);\n    list.insertAtHead(20);\n    list.insertAtHead(10);\n    list.display();\n    return 0;\n}`,
+      "Trees": `#include <iostream>\n#include <vector>\n#include <memory>\n\nstruct TreeNode {\n    std::string val;\n    std::vector<std::shared_ptr<TreeNode>> children;\n    TreeNode(std::string name) : val(name) {}\n};\n\nvoid printTree(const std::shared_ptr<TreeNode>& root, int depth = 0) {\n    if (!root) return;\n    for (int i = 0; i < depth; ++i) std::cout << "  ";\n    std::cout << "|-- " << root->val << "\\n";\n    for (const auto& child : root->children) {\n        printTree(child, depth + 1);\n    }\n}\n\nint main() {\n    auto ceo = std::make_shared<TreeNode>("CEO");\n    auto vpe = std::make_shared<TreeNode>("VP Engineering");\n    auto vpm = std::make_shared<TreeNode>("VP Marketing");\n    \n    ceo->children.push_back(vpe);\n    ceo->children.push_back(vpm);\n    \n    vpe->children.push_back(std::make_shared<TreeNode>("Engineering Lead"));\n    \n    printTree(ceo);\n    return 0;\n}`,
+      "BST": `#include <iostream>\n\nstruct Node {\n    int data;\n    Node* left;\n    Node* right;\n    Node(int val) : data(val), left(nullptr), right(nullptr) {}\n};\n\nNode* insert(Node* root, int val) {\n    if (!root) return new Node(val);\n    if (val < root->data) root->left = insert(root->left, val);\n    else root->right = insert(root->right, val);\n    return root;\n}\n\nvoid inorder(Node* root) {\n    if (!root) return;\n    inorder(root->left);\n    std::cout << root->data << " ";\n    inorder(root->right);\n}\n\nint main() {\n    Node* root = nullptr;\n    root = insert(root, 50);\n    insert(root, 30);\n    insert(root, 70);\n    insert(root, 20);\n    insert(root, 40);\n    \n    std::cout << "Inorder Traversal: ";\n    inorder(root);\n    std::cout << "\\n";\n    return 0;\n}`,
+      "AVL": `#include <iostream>\n#include <algorithm>\n\nstruct Node {\n    int key, height;\n    Node *left, *right;\n    Node(int val) : key(val), height(1), left(nullptr), right(nullptr) {}\n};\n\nint height(Node* n) { return n ? n->height : 0; }\nint getBalance(Node* n) { return n ? height(n->left) - height(n->right) : 0; }\n\nint main() {\n    Node* root = new Node(10);\n    root->left = new Node(20);\n    root->height = 2;\n    \n    std::cout << "AVL Balance Factor of Root: " << getBalance(root) << "\\n";\n    return 0;\n}`,
+      "Hashing": `#include <iostream>\n#include <unordered_map>\n#include <string>\n\nint main() {\n    std::unordered_map<std::string, int> grades;\n    grades["Linked List"] = 90;\n    grades["Trees"] = 85;\n    grades["BST"] = 70;\n    \n    for (const auto& [topic, score] : grades) {\n        std::cout << topic << ": " << score << "%\\n";\n    }\n    return 0;\n}`,
+      "Stack": `#include <iostream>\n#include <stack>\n\nint main() {\n    std::stack<int> s;\n    s.push(10);\n    s.push(20);\n    s.push(30);\n    \n    while (!s.empty()) {\n        std::cout << "Pop: " << s.top() << "\\n";\n        s.pop();\n    }\n    return 0;\n}`,
+      "Queue": `#include <iostream>\n#include <queue>\n\nint main() {\n    std::queue<int> q;\n    q.push(10);\n    q.push(20);\n    q.push(30);\n    \n    while (!q.empty()) {\n        std::cout << "Dequeue: " << q.front() << "\\n";\n        q.pop();\n    }\n    return 0;\n}`,
+      "STL": `#include <iostream>\n#include <vector>\n#include <algorithm>\n#include <ranges>\n\nint main() {\n    std::vector<int> nums = {5, 2, 8, 1, 4};\n    std::ranges::sort(nums);\n    \n    std::cout << "Sorted STL Elements: ";\n    for (int n : nums) std::cout << n << " ";\n    std::cout << "\\n";\n    return 0;\n}`,
+      "Binary Search": `#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<int> arr = {10, 20, 30, 40, 50};\n    int target = 30;\n    \n    bool found = std::binary_search(arr.begin(), arr.end(), target);\n    std::cout << "Element " << target << (found ? " found" : " not found") << " in vector.\\n";\n    return 0;\n}`,
+      "Vector": `#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<int> v;\n    v.push_back(100);\n    v.push_back(200);\n    \n    std::cout << "Vector Size: " << v.size() << " | Capacity: " << v.capacity() << "\\n";\n    return 0;\n}`
+    };
+
+    window.onload = async function () {
+      try {
+        const res = await fetch('/api/auth-config');
+        const config = await res.json();
+
+        if (config.clientId && config.clientId.trim() !== "") {
+          document.getElementById('google-buttonDiv').classList.remove('hidden');
+          const script = document.createElement('script');
+          script.src = "https://accounts.google.com/gsi/client";
+          script.async = true;
+          script.defer = true;
+          script.onload = () => {
+            google.accounts.id.initialize({
+              client_id: config.clientId, 
+              callback: handleCredentialResponse,
+              hosted_domain: "student.uol.edu.pk"
+            });
+            google.accounts.id.renderButton(
+              document.getElementById("google-buttonDiv"),
+              { theme: "outline", size: "large", width: "100%" }
+            );
+          };
+          document.head.appendChild(script);
+        } else {
+          document.getElementById('google-buttonDiv').classList.add('hidden');
+          document.getElementById('offline-developer-login').classList.remove('hidden');
+        }
+      } catch (err) {
+        document.getElementById('google-buttonDiv').classList.add('hidden');
+        document.getElementById('offline-developer-login').classList.remove('hidden');
+      }
+
+      checkAuth();
+
+      const editorConfig = {
+        mode: "text/x-c++src",
+        theme: "dracula",
+        lineNumbers: true,
+        matchBrackets: true,
+        autoCloseBrackets: true,
+        indentUnit: 4
+      };
+
+      playgroundEditor = CodeMirror.fromTextArea(document.getElementById('compiler-code'), editorConfig);
+      assignmentEditor = CodeMirror.fromTextArea(document.getElementById('assignment-student-code'), editorConfig);
+      
+      setTimeout(() => {
+        playgroundEditor.refresh();
+        assignmentEditor.refresh();
+      }, 100);
+    };
+
+    function handleCredentialResponse(response) {
+      const responsePayload = decodeJwtResponse(response.credential);
+      const email = responsePayload.email;
+
+      if (email.endsWith('@student.uol.edu.pk')) {
+        document.getElementById('login-error').classList.add('hidden');
+        localStorage.setItem('student_email', email);
+        checkAuth();
+      } else {
+        document.getElementById('login-error').classList.remove('hidden');
+      }
+    }
+
+    function triggerOfflineLogin() {
+      const email = document.getElementById('dev-email-input').value.trim();
+      if (email.endsWith('@student.uol.edu.pk')) {
+        document.getElementById('login-error').classList.add('hidden');
+        localStorage.setItem('student_email', email);
+        checkAuth();
+      } else {
+        document.getElementById('login-error').classList.remove('hidden');
+      }
+    }
+
+    function decodeJwtResponse(token) {
+      let base64Url = token.split('.')[1];
+      let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      let jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    }
+
+    function checkAuth() {
+      const email = localStorage.getItem('student_email');
+      if (email && email.endsWith('@student.uol.edu.pk')) {
+        document.getElementById('login-overlay').classList.add('hidden');
+        document.getElementById('app-container').classList.remove('hidden');
+        document.getElementById('user-display').innerText = email;
+        
+        renderTopicSelectors();
+        fetchProfile();
+      } else {
+        document.getElementById('login-overlay').classList.remove('hidden');
+        document.getElementById('app-container').classList.add('hidden');
+      }
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('student_email');
+      checkAuth();
+    }
+
+    async function authorizedFetch(url, options = {}) {
+      const email = localStorage.getItem('student_email');
+      const headers = {
+        ...(options.headers || {}),
+        'x-student-email': email
+      };
+      return fetch(url, { ...options, headers });
+    }
+
+    function goToPlaygroundSection() { switchTab('playground-tab'); }
+    function goToQuizSection() {
+      document.getElementById('quiz-topic').value = selectedTopic;
+      switchTab('quiz-tab');
+      startQuiz();
+    }
+    function goToAssignmentSection() { switchTab('analyze-tab'); }
+
+    let isGradebookOpen = false;
+    function toggleGradebook() {
+      const panel = document.getElementById('gradebook-panel');
+      const arrow = document.getElementById('gradebook-arrow');
+      isGradebookOpen = !isGradebookOpen;
+
+      if (isGradebookOpen) {
+        panel.classList.remove('hidden');
+        arrow.innerText = "▲";
+      } else {
+        panel.classList.add('hidden');
+        arrow.innerText = "▼";
+      }
+    }
+
+    let isHistoryOpen = false;
+    function toggleHistory() {
+      const panel = document.getElementById('history-panel');
+      const arrow = document.getElementById('history-arrow');
+      isHistoryOpen = !isHistoryOpen;
+
+      if (isHistoryOpen) {
+        panel.classList.remove('hidden');
+        arrow.innerText = "▲";
+      } else {
+        panel.classList.add('hidden');
+        arrow.innerText = "▼";
+      }
+    }
+
+    // --- CO-PILOT CHAT SYSTEM CONTROLLERS ---
+
+    async function sendCopilotMessage() {
+      const inputEl = document.getElementById('copilot-input');
+      const query = inputEl.value.trim();
+      if (!query) return;
+
+      inputEl.value = ""; 
+      appendChatMessage("user", query);
+
+      const loader = document.getElementById('copilot-loader');
+      loader.classList.remove('hidden');
+
+      try {
+        const res = await authorizedFetch('/api/chat-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: selectedTopic || 'Trees', messages: activeChatMessages })
+        });
+
+        loader.classList.add('hidden');
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = "";
+        let aiMessageText = "";
+
+        const aiMsgDivId = appendChatMessage("ai", "");
+        const aiMsgDiv = document.getElementById(aiMsgDivId);
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6).trim();
+              if (dataStr === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.text) {
+                  aiMessageText += parsed.text;
+                  aiMsgDiv.innerHTML = cleanFormatOutput(aiMessageText);
+                }
+              } catch (e) {}
+            }
+          }
+        }
+
+        activeChatMessages.push({ sender: "ai", text: aiMessageText });
+        const chatBox = document.getElementById('copilot-messages');
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+      } catch (err) {
+        loader.classList.add('hidden');
+        appendChatMessage("ai", `Failed to connect with copilot: ${err.message}`);
+      }
+    }
+
+    function appendChatMessage(sender, text) {
+      const chatBox = document.getElementById('copilot-messages');
+      const msgDiv = document.createElement('div');
+      const uniqueId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      
+      msgDiv.id = uniqueId;
+      if (sender === "user") {
+        msgDiv.className = "p-2 bg-indigo-950 rounded-lg text-indigo-100 text-left self-end ml-6 shadow-sm";
+        msgDiv.innerHTML = cleanFormatOutput(text);
+        activeChatMessages.push({ sender: "user", text });
+      } else {
+        msgDiv.className = "p-2 bg-slate-800 rounded-lg text-slate-100 text-left mr-6 shadow-sm";
+        msgDiv.innerHTML = text ? cleanFormatOutput(text) : '<span class="animate-pulse">Thinking...</span>';
+      }
+      chatBox.appendChild(msgDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+      return uniqueId;
+    }
+
+    async function saveCurrentChat() {
+      if (activeChatMessages.length === 0) return;
+      const title = prompt("Enter a title to save this conversation session:", `${selectedTopic || 'Trees'} Chat Session`);
+      if (!title) return;
+
+      try {
+        const res = await authorizedFetch('/api/save-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: selectedTopic || 'Trees', title, messages: activeChatMessages })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Chat Session saved successfully to MongoDB!');
+          fetchProfile();
+        }
+      } catch (err) {
+        alert('Failed to save chat: ' + err.message);
+      }
+    }
+
+    async function loadSavedLesson(chatId) {
+      const loader = document.getElementById('streaming-loader');
+      loader.classList.remove('hidden');
+
+      try {
+        const res = await authorizedFetch(`/api/load-chat?chatId=${chatId}`);
+        const data = await res.json();
+        
+        loader.classList.add('hidden');
+        if (data.messages) {
+          selectedTopic = data.topic;
+          
+          document.getElementById('welcome-placeholder').classList.add('hidden');
+          document.getElementById('current-topic-heading').innerText = `Reviewing ${data.topic} (Saved Chat: ${data.title})`;
+          
+          document.getElementById('video-embed-box').classList.add('hidden');
+          document.getElementById('teaching-module-wrapper').classList.remove('hidden');
+          document.getElementById('teaching-split-container').classList.remove('hidden');
+          
+          switchTab('teach-tab');
+          fetchSlidePreviews();
+
+          activeChatMessages = data.messages;
+          const chatBox = document.getElementById('copilot-messages');
+          chatBox.innerHTML = "";
+          
+          data.messages.forEach(m => {
+            const msgDiv = document.createElement('div');
+            if (m.sender === "user") {
+              msgDiv.className = "p-2 bg-indigo-950 rounded-lg text-indigo-100 text-left self-end ml-6 shadow-sm";
+            } else {
+              msgDiv.className = "p-2 bg-slate-800 rounded-lg text-slate-100 text-left mr-6 shadow-sm";
+            }
+            msgDiv.innerHTML = cleanFormatOutput(m.text);
+            chatBox.appendChild(msgDiv);
+          });
+          chatBox.scrollTop = chatBox.scrollHeight;
+        }
+      } catch (err) {
+        loader.classList.add('hidden');
+        alert('Failed to load chat session: ' + err.message);
+      }
+    }
+
+    function renderTopicSelectors() {
+      const container = document.getElementById('topic-selector');
+      const quizSelect = document.getElementById('quiz-topic');
+      container.innerHTML = "";
+      quizSelect.innerHTML = "";
+
+      topics.forEach(topic => {
+        const btn = document.createElement('button');
+        btn.innerText = topic;
+        btn.id = `btn-topic-${topic.replace(/\s+/g, '-')}`;
+        btn.className = "w-full text-left px-3 py-2 text-sm rounded border border-gray-200 hover:bg-indigo-50 hover:border-indigo-300 transition text-gray-700 font-medium";
+        btn.onclick = () => selectTopic(topic);
+        container.appendChild(btn);
+
+        const opt = document.createElement('option');
+        opt.value = topic;
+        opt.innerText = topic;
+        quizSelect.appendChild(opt);
+      });
+    }
+
+    // --- AUTOMATIC WRAPPER REVEAL FIXED ---
+    async function selectTopic(topic) {
+      try {
+        selectedTopic = topic;
+        topics.forEach(t => {
+          const btn = document.getElementById(`btn-topic-${t.replace(/\s+/g, '-')}`);
+          if (btn) btn.className = btn.className.replace("bg-indigo-100 border-indigo-400", "hover:bg-indigo-50 hover:border-indigo-300");
+        });
+
+        const selectedBtn = document.getElementById(`btn-topic-${topic.replace(/\s+/g, '-')}`);
+        if (selectedBtn) {
+          selectedBtn.className += " bg-indigo-100 border-indigo-400";
+        }
+
+        document.getElementById('current-topic-heading').innerText = `Study ${topic}`;
+        
+        // Ensure Welcome Placeholder hides and BOTH Teaching wrappers unhide properly
+        const welcomeNode = document.getElementById('welcome-placeholder');
+        if (welcomeNode) welcomeNode.classList.add('hidden');
+        
+        const wrapperNode = document.getElementById('teaching-module-wrapper');
+        if (wrapperNode) wrapperNode.classList.remove('hidden');
+
+        const splitContainer = document.getElementById('teaching-split-container');
+        if (splitContainer) splitContainer.classList.add('hidden'); // Reset split view initially
+
+        const conceptBox = document.getElementById('concept-check-box');
+        if (conceptBox) conceptBox.classList.add('hidden'); // Reset concept view initially
+
+        const defaultCode = cppCodeTemplates[topic] || '// Write C++23 code here...';
+        if (playgroundEditor) {
+          playgroundEditor.setValue(defaultCode);
+        }
+        document.getElementById('compiler-stdout').innerText = 'Ready to execute program...';
+
+        activeChatMessages = [];
+        document.getElementById('copilot-messages').innerHTML = `<p class="text-slate-400 italic">Professor: Hello! I am your visual/logic copilot. If you don't understand any specific complexity notations or logic blocks, paste it here and I will clarify it instantly!</p>`;
+
+        const res = await authorizedFetch('/api/get-topic-meta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic })
+        });
+        
+        if (!res.ok) throw new Error("Failed to load topic metadata.");
+        
+        const data = await res.json();
+        
+        const iframe = document.getElementById('video-iframe');
+        const embedBox = document.getElementById('video-embed-box');
+        const iframeContainer = document.getElementById('video-iframe-container');
+        const statusNotice = document.getElementById('video-status-notice');
+
+        if (data.youtubeUrl && data.youtubeUrl.trim() !== "") {
+          const videoId = extractYTId(data.youtubeUrl);
+          iframe.src = `https://www.youtube.com/embed/${videoId}`;
+          iframeContainer.classList.remove('hidden');
+          statusNotice.innerText = "🔔 Watch this reference tutorial first to understand the basics, then click 'Unlock AI Explanation'.";
+          statusNotice.className = "p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 text-xs font-semibold";
+          embedBox.classList.remove('hidden');
+        } else {
+          iframe.src = "";
+          iframeContainer.classList.add('hidden');
+          statusNotice.innerText = `💡 No custom reference video mapped for ${topic}. You can skip straight to the AI explanations.`;
+          statusNotice.className = "p-3 bg-indigo-50 border border-indigo-200 rounded text-indigo-900 text-xs font-semibold";
+          embedBox.classList.remove('hidden');
+        }
+
+        switchTab('teach-tab');
+      } catch (err) {
+        console.error("Topic Load Error:", err);
+        alert("An error occurred loading the topic data. Ensure backend is running.");
+      }
+    }
+
+    function extractYTId(url) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    async function unlockTeaching() {
+      document.getElementById('video-embed-box').classList.add('hidden');
+      document.getElementById('teaching-split-container').classList.remove('hidden');
+      
+      startTeaching();
+      fetchSlidePreviews();
+    }
+
+    async function startTeaching() {
+      const output = document.getElementById('teacher-output');
+      const loader = document.getElementById('streaming-loader');
+      const timerSpan = document.getElementById('stream-timer');
+      const visualOutput = document.getElementById('visual-output');
+      const visualsLoader = document.getElementById('visuals-loader');
+      
+      output.innerHTML = "";
+      visualOutput.innerHTML = "";
+      loader.classList.remove('hidden');
+      visualsLoader.classList.add('hidden');
+      
+      let seconds = 0;
+      timerSpan.innerText = "0s";
+      const stopwatch = setInterval(() => {
+        seconds++;
+        timerSpan.innerText = `${seconds}s`;
+      }, 1000);
+
+      try {
+        const res = await authorizedFetch('/api/teach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: selectedTopic })
+        });
+        
+        if (res.status === 401) {
+          clearInterval(stopwatch);
+          loader.classList.add('hidden');
+          return handleLogout();
+        }
+        
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let accumulatedText = "";
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6).trim();
+              if (dataStr === '[DONE]') {
+                break;
+              }
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.text) {
+                  accumulatedText += parsed.text;
+                  output.innerHTML = cleanFormatOutput(accumulatedText);
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
+            }
+          }
+        }
+        
+        clearInterval(stopwatch);
+        loader.classList.add('hidden');
+        
+        await startVisualGeneration();
+        
+      } catch (err) {
+        clearInterval(stopwatch);
+        loader.classList.add('hidden');
+        output.innerHTML = `<p class="text-red-500 font-semibold">Error: ${err.message}</p>`;
+      }
+    }
+
+    async function startVisualGeneration() {
+      const visualOutput = document.getElementById('visual-output');
+      const visualsLoader = document.getElementById('visuals-loader');
+      
+      visualsLoader.classList.remove('hidden');
+      visualOutput.innerHTML = "";
+
+      try {
+        const res = await authorizedFetch('/api/visuals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: selectedTopic })
+        });
+        const data = await res.json();
+        
+        visualsLoader.classList.add('hidden');
+        if (data.diagram && data.diagram.trim().length > 0) {
+          visualOutput.innerHTML = `<pre class="bg-slate-800 text-slate-100 p-4 rounded text-xs font-mono overflow-x-auto"><code>${escapeHtml(data.diagram)}</code></pre>`;
+        } else {
+          visualOutput.innerHTML = `<p class="text-xs text-gray-500 italic">No illustration generated.</p>`;
+        }
+
+        triggerConceptCheck();
+      } catch (err) {
+        visualsLoader.classList.add('hidden');
+        visualOutput.innerHTML = `<p class="text-red-500 text-xs font-semibold">Failed to fetch visuals: ${err.message}</p>`;
+        triggerConceptCheck();
+      }
+    }
+
+    async function runCppCode() {
+      const code = playgroundEditor ? playgroundEditor.getValue() : document.getElementById('compiler-code').value;
+      const stdin = document.getElementById('compiler-stdin').value;
+      const stdoutConsole = document.getElementById('compiler-stdout');
+      const spinner = document.getElementById('compiler-btn-spinner');
+
+      spinner.classList.remove('hidden');
+      stdoutConsole.innerHTML = "Compiling program using native C++23 standards...";
+
+      try {
+        const res = await authorizedFetch('/api/compile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, input: stdin })
+        });
+        const data = await res.json();
+
+        spinner.classList.add('hidden');
+        if (data.success) {
+          stdoutConsole.innerHTML = data.output ? escapeHtml(data.output) : "[Compilation Succeeded: Process executed with exit code 0 and empty stdout]";
+        } else if (data.compile_error) {
+          stdoutConsole.innerHTML = `<span class="text-red-400">Compilation Error:\n${escapeHtml(data.compile_error)}</span>`;
+        } else if (data.run_error) {
+          stdoutConsole.innerHTML = `<span class="text-amber-400">Execution Error:\n${escapeHtml(data.run_error)}</span>`;
+        }
+      } catch (err) {
+        spinner.classList.add('hidden');
+        stdoutConsole.innerHTML = `<span class="text-red-400">Sandbox Communication Error: ${escapeHtml(err.message)}</span>`;
+      }
+    }
+
+    async function fetchSlidePreviews() {
+      const container = document.getElementById('slide-previews-container');
+      container.innerHTML = `<p class="text-xs text-gray-500 animate-pulse font-medium">Searching matching resources...</p>`;
+
+      try {
+        const res = await authorizedFetch(`/api/slide-previews?topic=${encodeURIComponent(selectedTopic)}`);
+        const data = await res.json();
+        
+        container.innerHTML = "";
+        if (data.previews && data.previews.length > 0) {
+          data.previews.forEach(p => {
+            const card = document.createElement('div');
+            card.className = "p-4 bg-white border border-gray-200 rounded-lg shadow-sm text-xs space-y-3";
+            
+            if (p.fileExists) {
+              card.innerHTML = `
+                <div class="flex justify-between text-[10px] text-indigo-700 font-bold uppercase tracking-wider">
+                  <span>📄 ${p.source}</span>
+                  <span>Page ${p.pageNumber}</span>
+                </div>
+                <div class="w-full h-72 border rounded overflow-hidden relative">
+                  <iframe src="/slides/${p.source}#page=${p.pageNumber}" class="w-full h-full" style="border: none;"></iframe>
+                </div>
+                <button onclick="openPdfModal('${p.source}', ${p.pageNumber})" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] py-1.5 rounded font-bold transition">🔍 Expand Preview</button>
+              `;
+            } else {
+              card.innerHTML = `
+                <div class="flex justify-between text-[10px] text-amber-700 font-bold uppercase tracking-wider bg-amber-50 p-1.5 rounded">
+                  <span>📄 Reference PDF File Missing</span>
+                  <span>Page ${p.pageNumber}</span>
+                </div>
+                <div class="p-3 bg-gray-50 border border-gray-150 rounded text-[11px] text-gray-500 italic">
+                  Reference file "${p.source}" does not exist on server slides directory. Showing slide text extract:
+                  <div class="mt-2 text-[10px] font-mono text-gray-600 bg-white p-2 border rounded max-h-32 overflow-y-auto">${escapeHtml(p.content)}</div>
+                </div>
+              `;
+            }
+            container.appendChild(card);
+          });
+        } else {
+          container.innerHTML = `<p class="text-xs text-gray-400">No matching slide references found on disk.</p>`;
+        }
+      } catch (err) {
+        container.innerHTML = `<p class="text-xs text-red-500">Error: ${err.message}</p>`;
+      }
+    }
+
+    function openPdfModal(source, pageNumber) {
+      const modal = document.getElementById('pdf-modal');
+      const iframe = document.getElementById('pdf-modal-iframe');
+      const title = document.getElementById('pdf-modal-title');
+      
+      title.innerText = `Reference Viewer: ${source} (Page ${pageNumber})`;
+      iframe.src = `/slides/${source}#page=${pageNumber}`;
+      modal.classList.remove('hidden');
+    }
+
+    function closePdfModal() {
+      const modal = document.getElementById('pdf-modal');
+      const iframe = document.getElementById('pdf-modal-iframe');
+      iframe.src = "";
+      modal.classList.add('hidden');
+    }
+
+    async function triggerConceptCheck() {
+      const loader = document.getElementById('concept-question-loader');
+      const container = document.getElementById('concept-active-container');
+      const conceptBox = document.getElementById('concept-check-box');
+
+      conceptBox.classList.remove('hidden');
+      loader.classList.remove('hidden');
+      container.classList.add('hidden');
+
+      try {
+        const res = await authorizedFetch('/api/concept-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: selectedTopic })
+        });
+        const data = await res.json();
+        
+        loader.classList.add('hidden');
+        if (data.question) {
+          activeQuestion = data.question;
+          document.getElementById('concept-question').innerHTML = cleanFormatOutput(activeQuestion);
+          document.getElementById('concept-answer').value = "";
+          document.getElementById('concept-feedback').classList.add('hidden');
+          container.classList.remove('hidden');
+        }
+      } catch (err) {
+        loader.classList.add('hidden');
+        console.error(err);
+      }
+    }
+
+    async function submitConceptAnswer() {
+      const answer = document.getElementById('concept-answer').value;
+      if (!answer.trim()) return;
+
+      const loader = document.getElementById('concept-feedback-loader');
+      const feedbackDiv = document.getElementById('concept-feedback');
+      
+      loader.classList.remove('hidden');
+      feedbackDiv.classList.add('hidden');
+
+      try {
+        const res = await authorizedFetch('/api/concept-evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: selectedTopic, question: activeQuestion, answer })
+        });
+        const data = await res.json();
+        
+        loader.classList.add('hidden');
+        feedbackDiv.innerHTML = formatEvaluationReport(data.feedback, "concept");
+        feedbackDiv.classList.remove('hidden');
+        
+        fetchProfile();
+      } catch (err) {
+        loader.classList.add('hidden');
+        feedbackDiv.innerHTML = `<span class="text-red-500 font-semibold">Failed to evaluate: ${err.message}</span>`;
+        feedbackDiv.classList.remove('hidden');
+      }
+    }
+
+    async function startQuiz() {
+      const topic = document.getElementById('quiz-topic').value;
+      const format = document.getElementById('quiz-format').value;
+      const loader = document.getElementById('quiz-loader');
+      const outputContainer = document.getElementById('quiz-output-container');
+      const quizPaper = document.getElementById('quiz-paper');
+      const evaluationReport = document.getElementById('quiz-evaluation-report');
+
+      loader.classList.remove('hidden');
+      outputContainer.classList.add('hidden');
+      evaluationReport.classList.add('hidden');
+
+      try {
+        const res = await authorizedFetch('/api/quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic, format })
+        });
+        const data = await res.json();
+        
+        loader.classList.add('hidden');
+        if (data.quiz) {
+          activeRawQuiz = data.quiz;
+          quizPaper.innerHTML = data.quiz;
+          document.getElementById('quiz-answers').value = "";
+          outputContainer.classList.remove('hidden');
+        }
+      } catch (err) {
+        loader.classList.add('hidden');
+        quizPaper.innerHTML = `<span class="text-red-500 font-semibold">Failed: ${err.message}</span>`;
+        outputContainer.classList.remove('hidden');
+      }
+    }
+
+    async function submitQuizAnswers() {
+      const answers = document.getElementById('quiz-answers').value;
+      if (!answers.trim()) return;
+
+      const topic = document.getElementById('quiz-topic').value;
+      const spinner = document.getElementById('quiz-submit-spinner');
+      const reportDiv = document.getElementById('quiz-evaluation-report');
+
+      spinner.classList.remove('hidden');
+      reportDiv.classList.add('hidden');
+
+      try {
+        const res = await authorizedFetch('/api/evaluate-quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic, quizText: activeRawQuiz, studentAnswers: answers })
+        });
+        const data = await res.json();
+        
+        spinner.classList.add('hidden');
+        reportDiv.innerHTML = formatEvaluationReport(data.feedback, "quiz");
+        reportDiv.classList.remove('hidden');
+        
+        fetchProfile();
+      } catch (err) {
+        spinner.classList.add('hidden');
+        reportDiv.innerHTML = `<span class="text-red-500 font-semibold">Failed to evaluate: ${err.message}</span>`;
+        reportDiv.classList.remove('hidden');
+      }
+    }
+
+    async function analyzeAssignment() {
+      const text = document.getElementById('assignment-text').value;
+      const code = assignmentEditor ? assignmentEditor.getValue() : document.getElementById('assignment-student-code').value;
+      if (!text.trim() || !code.trim()) return;
+
+      const loader = document.getElementById('assignment-loader');
+      const output = document.getElementById('analyzer-output');
+
+      loader.classList.remove('hidden');
+      output.classList.add('hidden');
+
+      try {
+        const res = await authorizedFetch('/api/evaluate-assignment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: selectedTopic || 'Trees', assignmentText: text, studentCode: code })
+        });
+        const data = await res.json();
+        
+        loader.classList.add('hidden');
+        output.innerHTML = formatEvaluationReport(data.feedback, "assignment");
+        output.classList.remove('hidden');
+        
+        fetchProfile();
+      } catch (err) {
+        loader.classList.add('hidden');
+        output.innerHTML = `<p class="text-red-500 font-semibold">Error: ${err.message}</p>`;
+        output.classList.remove('hidden');
+      }
+    }
+
+    function formatEvaluationReport(rawText, type = "concept") {
+      const scoreMatch = rawText.match(/Score:\s*(\d+)\s*\/100/i) || rawText.match(/Score:\s*(\d+)\s*\/10/i);
+      const weaknessMatch = rawText.match(/Weakness:\s*([\s\S]*?)(?=Feedback:|$)/i);
+      const feedbackMatch = rawText.match(/Feedback:\s*([\s\S]*?)$/i);
+
+      let score = scoreMatch ? parseInt(scoreMatch[1], 10) : 0;
+      let maxScore = rawText.includes('/100') ? 100 : 10;
+      
+      const weakness = weaknessMatch ? weaknessMatch[1].trim() : "No critical logical omissions identified.";
+      const feedback = feedbackMatch ? feedbackMatch[1].trim() : rawText;
+
+      const scorePercentage = maxScore === 10 ? score * 10 : score;
+
+      let scoreBadgeColor = "bg-emerald-50 text-emerald-800 border-emerald-200";
+      if (scorePercentage < 50) scoreBadgeColor = "bg-red-50 text-red-800 border-red-200";
+      else if (scorePercentage < 70) scoreBadgeColor = "bg-amber-50 text-amber-800 border-amber-200";
+
+      let actionButtonHTML = "";
+      if (type === "concept") {
+        actionButtonHTML = `
+          <div class="mt-4 flex flex-wrap justify-center gap-3">
+            <button onclick="goToPlaygroundSection()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4 py-2 rounded font-bold transition shadow-sm">💻 Step 2: Try C++23 Code Playground</button>
+            <button onclick="goToQuizSection()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded font-bold transition shadow-sm">🎯 Step 3: Try Topic Practice Quiz</button>
+          </div>
+        `;
+      } else if (type === "quiz") {
+        actionButtonHTML = `
+          <div class="mt-4 flex justify-center">
+            <button onclick="goToAssignmentSection()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded font-bold transition shadow-sm">💻 Step 4: Grade Topic Assignment</button>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between p-4 border rounded-lg ${scoreBadgeColor} font-sans shadow-sm shadow-indigo-100">
+            <span class="font-bold text-xs uppercase tracking-wider">Evaluation Verification Grade</span>
+            <span class="text-xl font-extrabold">${score} / ${maxScore}</span>
+          </div>
+          <div class="p-4 bg-red-50 border border-red-200 rounded-lg shadow-sm shadow-red-100">
+            <h4 class="font-bold text-xs uppercase tracking-wider text-red-800 mb-1 font-sans">Identified Weakness</h4>
+            <p class="text-sm text-gray-700">${cleanFormatOutput(weakness)}</p>
+          </div>
+          <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-lg shadow-sm shadow-indigo-100">
+            <h4 class="font-bold text-xs uppercase tracking-wider text-indigo-800 mb-1 font-sans">Professor's Guidance & Assessment</h4>
+            <p class="text-sm text-gray-700">${cleanFormatOutput(feedback)}</p>
+          </div>
+          ${actionButtonHTML}
+        </div>
+      `;
+    }
+
+    async function fetchProfile() {
+      try {
+        const res = await authorizedFetch('/api/profile');
+        if (res.status === 401) return handleLogout();
+        const data = await res.json();
+        renderProfile(data.profile, data.recommendation);
+
+        const gbRes = await authorizedFetch('/api/gradebook');
+        const gbData = await gbRes.json();
+        renderGradebook(gbData);
+      } catch (err) {
+        console.error('Failed to load profile data', err);
+      }
+    }
+
+    function renderProfile(profile, rec) {
+      const container = document.getElementById('profile-container');
+      container.innerHTML = "";
+      
+      Object.entries(profile).forEach(([topic, score]) => {
+        const row = document.className = "text-xs space-y-1";
+        row.innerHTML = `
+          <div class="flex justify-between font-semibold text-gray-700">
+            <span>${topic}</span>
+            <span>${score}%</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-1.5">
+            <div class="bg-indigo-600 h-1.5 rounded-full" style="width: ${score}%"></div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+
+      document.getElementById('recommendation-box').innerHTML = `<strong>Focus Suggestion:</strong><br>${rec.suggestion}`;
+    }
+
+    function renderGradebook(data) {
+      const panel = document.getElementById('gradebook-panel');
+      const historyPanel = document.getElementById('history-panel');
+      panel.innerHTML = "";
+      historyPanel.innerHTML = "";
+
+      let entriesHTML = "";
+
+      if (data.conceptChecks && data.conceptChecks.length > 0) {
+        data.conceptChecks.forEach(c => {
+          entriesHTML += `
+            <div class="p-2 bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center shadow-sm">
+              <div>
+                <span class="font-bold text-slate-800">Concept: ${c.topic}</span>
+                <span class="block text-[9px] text-gray-400">${new Date(c.gradedAt).toLocaleDateString()}</span>
+              </div>
+              <span class="font-bold text-indigo-700">${c.score}/10</span>
+            </div>
+          `;
+        });
+      }
+
+      if (data.quizGrades && data.quizGrades.length > 0) {
+        data.quizGrades.forEach(q => {
+          entriesHTML += `
+            <div class="p-2 bg-indigo-50 border border-indigo-150 rounded-lg flex justify-between items-center shadow-sm">
+              <div>
+                <span class="font-bold text-indigo-900">Quiz: ${q.topic}</span>
+                <span class="block text-[9px] text-gray-400">${new Date(q.gradedAt).toLocaleDateString()}</span>
+              </div>
+              <span class="font-bold text-indigo-700">${q.score}%</span>
+            </div>
+          `;
+        });
+      }
+
+      if (data.assignmentGrades && data.assignmentGrades.length > 0) {
+        data.assignmentGrades.forEach(a => {
+          entriesHTML += `
+            <div class="p-2 bg-emerald-50 border border-emerald-150 rounded-lg flex justify-between items-center shadow-sm">
+              <div>
+                <span class="font-bold text-emerald-900">Assignment: ${a.topic}</span>
+                <span class="block text-[9px] text-gray-400">${new Date(a.gradedAt).toLocaleDateString()}</span>
+              </div>
+              <span class="font-bold text-emerald-700">${a.score}%</span>
+            </div>
+          `;
+        });
+      }
+
+      panel.innerHTML = entriesHTML || `<p class="text-gray-400 italic">No entries logged yet. Complete a Quiz or Assignment to seed.</p>`;
+
+      let historyHTML = "";
+      if (data.savedChats && data.savedChats.length > 0) {
+        data.savedChats.forEach(c => {
+          historyHTML += `
+            <button onclick="loadSavedLesson('${c.id}')" class="w-full text-left p-2 bg-slate-50 hover:bg-indigo-50 border border-slate-200 rounded-lg flex justify-between items-center transition shadow-sm outline-none">
+              <div>
+                <span class="font-bold text-slate-800 block text-xs">💬 ${c.title}</span>
+                <span class="text-[9px] text-gray-400 block">${new Date(c.savedAt).toLocaleDateString()}</span>
+              </div>
+              <span class="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">Review ➔</span>
+            </button>
+          `;
+        });
+      }
+
+      historyPanel.innerHTML = historyHTML || `<p class="text-gray-400 italic">No saved chats found. Chat with the copilot to save sessions.</p>`;
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(tabId).classList.remove('hidden');
+
+      const tabs = ['teach', 'playground', 'quiz', 'analyze', 'exam'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`btn-${t}-tab`);
+        if (btn) {
+          if (t === tabId.split('-')[0]) {
+            btn.className = "py-2 px-4 border-b-2 border-indigo-600 font-medium text-sm text-indigo-600";
+          } else {
+            btn.className = "py-2 px-4 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300";
+          }
+        }
+      });
+
+      if (tabId === 'playground-tab' && playgroundEditor) {
+        setTimeout(() => playgroundEditor.refresh(), 50);
+      }
+      if (tabId === 'analyze-tab' && assignmentEditor) {
+        setTimeout(() => assignmentEditor.refresh(), 50);
+      }
+    }
+
+    async function runSirPredictor() {
+      const output = document.getElementById('exam-output');
+      output.innerHTML = `<p class="text-sm text-gray-500 animate-pulse font-medium">Assembling trend indexes...</p>`;
+
+      try {
+        const res = await authorizedFetch('/api/predict-exam');
+        const data = await res.json();
+        output.innerHTML = cleanFormatOutput(data.predictions);
+      } catch (err) {
+        output.innerHTML = `<p class="text-red-500">Error: ${err.message}</p>`;
+      }
+    }
+
+    async function generateMockExam() {
+      const output = document.getElementById('exam-output');
+      output.innerHTML = `<p class="text-sm text-gray-500 animate-pulse font-medium">Assembling simulated final examination...</p>`;
+
+      try {
+        const res = await authorizedFetch('/api/simulate-exam');
+        const data = await res.json();
+        output.innerHTML = cleanFormatOutput(data.exam);
+      } catch (err) {
+        output.innerHTML = `<p class="text-red-500">Error: ${err.message}</p>`;
+      }
+    }
+
+    // High fidelity markdown to clean HTML parser
+    function cleanFormatOutput(text) {
+      if (!text) return "";
+      let html = escapeHtml(text);
+
+      html = html.replace(/--\s*$/gm, '');
+
+      html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-slate-800 text-slate-100 p-4 rounded my-3 overflow-x-auto text-xs"><code>$1</code></pre>');
+
+      html = html.replace(/^### (.*?)$/gm, '<h3 class="text-md font-bold mt-4 mb-2 text-indigo-950 font-sans">$1</h3>');
+      html = html.replace(/^## (.*?)$/gm, '<h2 class="text-lg font-bold mt-4 mb-2 text-indigo-950 font-sans">$1</h2>');
+      html = html.replace(/^# (.*?)$/gm, '<h1 class="text-xl font-bold mt-5 mb-2 text-indigo-950 font-sans">$1</h1>');
+
+      html = html.replace(/^#+\s*(.*?)$/gm, '<h3 class="text-sm font-bold mt-3 mb-1 text-indigo-950 font-sans">$1</h3>');
+
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
+
+      html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-800">$1</em>');
+
+      html = html.replace(/^\s*[-*•]\s+(.*?)$/gm, '<li class="ml-4 list-disc text-sm py-0.5 text-gray-700">$1</li>');
+
+      html = html.split('\n').map(line => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('<h') || trimmed.startsWith('<pre') || trimmed.startsWith('<li') || trimmed.startsWith('</li') || trimmed === '') {
+          return line;
+        }
+        return `<p class="text-sm leading-relaxed mb-2 text-gray-700">${line}</p>`;
+      }).join('\n');
+
+      return html;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+  </script>
+</body>
+</html>
