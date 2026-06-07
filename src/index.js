@@ -29,12 +29,10 @@ app.use(express.json());
 app.use(express.static(path.join(BASE_DIR, 'public')));
 app.use('/slides', express.static(path.join(DATA_DIR, 'slides')));
 
-// Auth config
 app.get('/api/auth-config', (req, res) => {
   res.json({ clientId: GOOGLE_CLIENT_ID });
 });
 
-// Authentication Middleware
 const checkUolStudent = (req, res, next) => {
   const studentEmail = req.headers['x-student-email'];
   if (studentEmail && studentEmail.endsWith('@student.uol.edu.pk')) {
@@ -48,7 +46,6 @@ app.use('/api', checkUolStudent);
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Native C++23 Sandbox Compiler
 app.post('/api/compile', async (req, res) => {
   const { code, input } = req.body;
   if (!code) return res.status(400).json({ error: 'Code is required.' });
@@ -76,18 +73,13 @@ app.post('/api/compile', async (req, res) => {
       
       exec(runCmd, { timeout: 5000, killSignal: 'SIGKILL' }, async (runError, runStdout, runStderr) => {
         await cleanTempFiles(sourcePath, execPath, inputPath);
-
         if (runError) {
-          if (runError.killed) {
-            return res.json({ success: false, run_error: 'Execution Timeout: Program terminated after 5 seconds.' });
-          }
+          if (runError.killed) return res.json({ success: false, run_error: 'Execution Timeout: Program terminated after 5 seconds.' });
           return res.json({ success: false, run_error: runStderr || runError.message });
         }
-
         res.json({ success: true, output: runStdout });
       });
     });
-
   } catch (error) {
     await cleanTempFiles(sourcePath, execPath, inputPath);
     res.status(500).json({ error: `Internal Sandbox Error: ${error.message}` });
@@ -96,13 +88,10 @@ app.post('/api/compile', async (req, res) => {
 
 async function cleanTempFiles(...paths) {
   for (const p of paths) {
-    try {
-      await fs.unlink(p);
-    } catch (e) {}
+    try { await fs.unlink(p); } catch (e) {}
   }
 }
 
-// Get Live Profile
 app.get('/api/profile', async (req, res) => {
   const email = req.headers['x-student-email'];
   try {
@@ -114,14 +103,11 @@ app.get('/api/profile', async (req, res) => {
   }
 });
 
-// GET RAW GRADEBOOK RECORDS & SAVED CHAT HISTORY FROM MONGO
 app.get('/api/gradebook', async (req, res) => {
   const email = req.headers['x-student-email'];
   try {
     const student = await Student.findOne({ email });
-    if (!student) {
-      return res.json({ conceptChecks: [], quizGrades: [], assignmentGrades: [], savedChats: [] });
-    }
+    if (!student) return res.json({ conceptChecks: [], quizGrades: [], assignmentGrades: [], savedChats: [] });
     res.json({
       conceptChecks: student.conceptChecks,
       quizGrades: student.quizGrades,
@@ -133,12 +119,10 @@ app.get('/api/gradebook', async (req, res) => {
   }
 });
 
-// SAVE CHAT SESSION TO MONGODB
 app.post('/api/save-chat', async (req, res) => {
   const email = req.headers['x-student-email'];
   const { topic, title, messages } = req.body;
   if (!topic || !title || !messages) return res.status(400).json({ error: 'Missing parameters.' });
-
   try {
     await Student.findOneAndUpdate(
       { email },
@@ -151,7 +135,6 @@ app.post('/api/save-chat', async (req, res) => {
   }
 });
 
-// LOAD CHAT SESSION FROM MONGODB
 app.get('/api/load-chat', async (req, res) => {
   const email = req.headers['x-student-email'];
   const { chatId } = req.query;
@@ -161,36 +144,26 @@ app.get('/api/load-chat', async (req, res) => {
     const student = await Student.findOne({ email });
     const chat = student?.savedChats?.id(chatId);
     if (!chat) return res.status(404).json({ error: 'Chat not found.' });
-    
     res.json({ messages: chat.messages, topic: chat.topic, title: chat.title });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// INTERACTIVE CHAT ASSISTANT CONVERSATION STREAM
 app.post('/api/chat-message', async (req, res) => {
   const { topic, messages } = req.body;
-  
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
   try {
     let conversationPrompt = `The following is an active conversation between a student and you, their expert computer science professor, regarding the topic: "${topic}".\n\n`;
-    messages.forEach(m => {
-      conversationPrompt += `${m.sender === 'user' ? 'Student' : 'Professor'}: ${m.text}\n`;
-    });
+    messages.forEach(m => { conversationPrompt += `${m.sender === 'user' ? 'Student' : 'Professor'}: ${m.text}\n`; });
     conversationPrompt += "Professor: ";
 
     await generateContentWithFallback(
-      conversationPrompt,
-      SYSTEM_PROMPTS.teacher,
-      0.7,
-      false, 
-      (textChunk) => {
-        res.write(`data: ${JSON.stringify({ text: textChunk })}\n\n`);
-      }
+      conversationPrompt, SYSTEM_PROMPTS.teacher, 0.7, false, 
+      (textChunk) => { res.write(`data: ${JSON.stringify({ text: textChunk })}\n\n`); }
     );
 
     res.write('data: [DONE]\n\n');
@@ -201,7 +174,6 @@ app.post('/api/chat-message', async (req, res) => {
   }
 });
 
-// Fetch Topic URL Mappings
 app.post('/api/get-topic-meta', async (req, res) => {
   const { topic } = req.body;
   try {
@@ -211,16 +183,13 @@ app.post('/api/get-topic-meta', async (req, res) => {
       const fileData = await fs.readFile(linksPath, 'utf-8');
       const linksMap = JSON.parse(fileData);
       youtubeUrl = linksMap[topic] || '';
-    } catch (err) {
-      console.warn('youtube_links.json not found.');
-    }
+    } catch (err) {}
     res.json({ youtubeUrl });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Real-Time Streaming Teacher Endpoint (Typo 'k' fixed on line 125)
 app.post('/api/teach', async (req, res) => {
   const email = req.headers['x-student-email'];
   const { topic } = req.body;
@@ -231,32 +200,28 @@ app.post('/api/teach', async (req, res) => {
 
   try {
     const student = await Student.findOne({ email });
-    const cachedLesson = student?.savedLessons?.find(l => l.topic === topic);
+    // FIX: Ensure the cached lesson actually has content (> 50 chars) to prevent loading empty DB saves
+    const cachedLesson = student?.savedLessons?.find(l => l.topic === topic && l.content && l.content.length > 50);
 
     if (cachedLesson) {
       console.log(`[Server] Instantly replaying saved lesson history for "${topic}"...`);
       const chunks = cachedLesson.content.match(/.{1,120}/g) || [cachedLesson.content];
-      
       for (const chunk of chunks) {
         res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
         await sleep(15);
       }
-      
       res.write('data: [DONE]\n\n');
       return res.end();
     }
 
     let youtubeUrl = '';
     let youtubeTranscript = '';
-
     const linksPath = path.join(DATA_DIR, 'youtube_links.json');
     try {
       const fileData = await fs.readFile(linksPath, 'utf-8');
       const linksMap = JSON.parse(fileData);
       youtubeUrl = linksMap[topic] || '';
-    } catch (err) {
-      console.warn('No links mapped.');
-    }
+    } catch (err) {}
 
     let youtubeUrls = [];
     if (Array.isArray(youtubeUrl)) {
@@ -265,15 +230,12 @@ app.post('/api/teach', async (req, res) => {
       youtubeUrls = [youtubeUrl];
     }
 
-    // Fixed index typo 'k' to 'u' on the loop below
     for (let u = 0; u < youtubeUrls.length; u++) {
       const url = youtubeUrls[u];
       try {
         const transcript = await getYoutubeTranscriptText(url);
         youtubeTranscript += `\n--- Video Reference Part ${u + 1} (${url}) ---\n${transcript}\n`;
-      } catch (ytError) {
-        console.warn(`[Server] Caption retrieval failed for Part ${u + 1}: ${ytError.message}`);
-      }
+      } catch (ytError) {}
     }
 
     const slides = await getTopicSlides(topic);
@@ -284,11 +246,14 @@ app.post('/api/teach', async (req, res) => {
       res.write(`data: ${JSON.stringify({ text: textChunk })}\n\n`);
     });
 
-    await Student.findOneAndUpdate(
-      { email },
-      { $push: { savedLessons: { topic, content: fullGeneratedText } } },
-      { upsert: true }
-    );
+    // FIX: Only save to database if the AI successfully generated a full lesson
+    if (fullGeneratedText.trim().length > 50) {
+      await Student.findOneAndUpdate(
+        { email },
+        { $push: { savedLessons: { topic, content: fullGeneratedText } } },
+        { upsert: true }
+      );
+    }
 
     res.write('data: [DONE]\n\n');
     res.end();
@@ -298,49 +263,34 @@ app.post('/api/teach', async (req, res) => {
   }
 });
 
-// Dedicated Visual Generation Endpoint
 app.post('/api/visuals', async (req, res) => {
   const { topic } = req.body;
   try {
     const visualPrompt = `Create a clean, highly structured ASCII diagram illustrating the logical layout or operation execution flow for: "${topic}".`;
-    const diagram = await generateContentWithFallback(
-      visualPrompt,
-      SYSTEM_PROMPTS.visuals,
-      0.4,
-      true
-    );
+    const diagram = await generateContentWithFallback(visualPrompt, SYSTEM_PROMPTS.visuals, 0.4, true);
     res.json({ diagram });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Fetch Slide previews
 app.get('/api/slide-previews', async (req, res) => {
   const { topic } = req.query;
   try {
     const previews = await getSlidePreviews(topic);
     const priorityPreview = previews.slice(0, 1);
-
     const validatedPreviews = await Promise.all(priorityPreview.map(async p => {
       const filePath = path.join(DATA_DIR, 'slides', p.source);
       let exists = false;
-      try {
-        await fs.access(filePath);
-        exists = true;
-      } catch (e) {
-        exists = false;
-      }
+      try { await fs.access(filePath); exists = true; } catch (e) { exists = false; }
       return { ...p, fileExists: exists };
     }));
-
     res.json({ previews: validatedPreviews });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Get Concept Question
 app.post('/api/concept-check', async (req, res) => {
   const { topic } = req.body;
   try {
@@ -351,7 +301,6 @@ app.post('/api/concept-check', async (req, res) => {
   }
 });
 
-// Grade Concept Check
 app.post('/api/concept-evaluate', async (req, res) => {
   const email = req.headers['x-student-email'];
   const { topic, question, answer } = req.body;
@@ -366,7 +315,6 @@ app.post('/api/concept-evaluate', async (req, res) => {
   }
 });
 
-// Practice Quiz Generator
 app.post('/api/quiz', async (req, res) => {
   const { topic, format } = req.body;
   try {
@@ -377,34 +325,14 @@ app.post('/api/quiz', async (req, res) => {
   }
 });
 
-// Interactive Practice Quiz Grader
 app.post('/api/evaluate-quiz', async (req, res) => {
   const email = req.headers['x-student-email'];
   const { topic, quizText, studentAnswers } = req.body;
-
-  const prompt = `
-Topic: ${topic}
-Quiz Questions:
-${quizText}
-
-Student's Submitted Answers:
-${studentAnswers}
-
-Evaluate this quiz. Your output must strictly follow this structure:
-Score: [X]/100
-Feedback: [Constructive comments identifying wrong items, code-tracing gaps, and guidance]
-`;
-
+  const prompt = `Topic: ${topic}\nQuiz Questions:\n${quizText}\nStudent's Submitted Answers:\n${studentAnswers}\nEvaluate this quiz. Your output must strictly follow this structure:\nScore: [X]/100\nFeedback: [Constructive comments identifying wrong items, code-tracing gaps, and guidance]`;
   try {
-    const evaluation = await generateContentWithFallback(
-      prompt,
-      SYSTEM_PROMPTS.evaluator,
-      0.3
-    );
-
+    const evaluation = await generateContentWithFallback(prompt, SYSTEM_PROMPTS.evaluator, 0.3);
     const scoreMatch = evaluation.match(/Score:\s*(\d+)\s*\/100/i);
     const score = scoreMatch ? parseInt(scoreMatch[1], 10) : 50;
-
     await recordQuizGrade(email, topic, score);
     res.json({ feedback: evaluation, score });
   } catch (error) {
@@ -412,35 +340,14 @@ Feedback: [Constructive comments identifying wrong items, code-tracing gaps, and
   }
 });
 
-// Interactive Assignment Evaluator & Grader
 app.post('/api/evaluate-assignment', async (req, res) => {
   const email = req.headers['x-student-email'];
   const { topic, assignmentText, studentCode } = req.body;
-
-  const prompt = `
-Topic: ${topic}
-Assignment Task Prompt:
-${assignmentText}
-
-Student's Submitted C++23 Implementation:
-${studentCode}
-
-Evaluate this coding assignment. Grade compiling structure, logical complexity, and boundary cases.
-Your output must strictly follow this structure:
-Score: [X]/100
-Feedback: [Line-by-line code review, optimization advice, and structural correctness]
-`;
-
+  const prompt = `Topic: ${topic}\nAssignment Task Prompt:\n${assignmentText}\nStudent's Submitted C++23 Implementation:\n${studentCode}\nEvaluate this coding assignment. Grade compiling structure, logical complexity, and boundary cases.\nYour output must strictly follow this structure:\nScore: [X]/100\nFeedback: [Line-by-line code review, optimization advice, and structural correctness]`;
   try {
-    const evaluation = await generateContentWithFallback(
-      prompt,
-      SYSTEM_PROMPTS.evaluator,
-      0.3
-    );
-
+    const evaluation = await generateContentWithFallback(prompt, SYSTEM_PROMPTS.evaluator, 0.3);
     const scoreMatch = evaluation.match(/Score:\s*(\d+)\s*\/100/i);
     const score = scoreMatch ? parseInt(scoreMatch[1], 10) : 50;
-
     await recordAssignmentGrade(email, topic, score, 'AI Graded Assignment Sheet');
     res.json({ feedback: evaluation, score });
   } catch (error) {
@@ -448,7 +355,6 @@ Feedback: [Line-by-line code review, optimization advice, and structural correct
   }
 });
 
-// Sir Predictor
 app.get('/api/predict-exam', async (req, res) => {
   try {
     const slides = await getFolderContent('slides');
@@ -461,7 +367,6 @@ app.get('/api/predict-exam', async (req, res) => {
   }
 });
 
-// Exam Simulator
 app.get('/api/simulate-exam', async (req, res) => {
   try {
     const slides = await getFolderContent('slides');
@@ -474,7 +379,6 @@ app.get('/api/simulate-exam', async (req, res) => {
   }
 });
 
-// Serve catch-all HTML fallback
 app.use((req, res) => {
   res.sendFile(path.join(BASE_DIR, 'public', 'index.html'));
 });

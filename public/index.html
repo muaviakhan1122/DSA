@@ -893,7 +893,9 @@
         
         visualsLoader.classList.add('hidden');
         if (data.diagram && data.diagram.trim().length > 0) {
-          visualOutput.innerHTML = `<pre class="bg-slate-800 text-slate-100 p-4 rounded text-xs font-mono overflow-x-auto"><code>${escapeHtml(data.diagram)}</code></pre>`;
+          // FIX: Strip out the raw markdown code block characters before rendering
+          const cleanDiagram = data.diagram.replace(/```[a-zA-Z]*\n?/g, '').replace(/```/g, '').trim();
+          visualOutput.innerHTML = `<pre class="bg-slate-800 text-slate-100 p-4 rounded text-xs font-mono overflow-x-auto"><code>${escapeHtml(cleanDiagram)}</code></pre>`;
         } else {
           visualOutput.innerHTML = `<p class="text-xs text-gray-500 italic">No illustration generated.</p>`;
         }
@@ -1062,7 +1064,7 @@
       }
     }
 
-    async function startQuiz() {
+async function startQuiz() {
       const topic = document.getElementById('quiz-topic').value;
       const format = document.getElementById('quiz-format').value;
       const loader = document.getElementById('quiz-loader');
@@ -1085,7 +1087,8 @@
         loader.classList.add('hidden');
         if (data.quiz) {
           activeRawQuiz = data.quiz;
-          quizPaper.innerHTML = data.quiz;
+          // FIX: Pass the quiz through cleanFormatOutput so it formats as markdown perfectly
+          quizPaper.innerHTML = cleanFormatOutput(data.quiz);
           document.getElementById('quiz-answers').value = "";
           outputContainer.classList.remove('hidden');
         }
